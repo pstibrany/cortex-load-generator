@@ -34,8 +34,9 @@ type WriteClientConfig struct {
 	UserID string
 
 	// Number of series to generate per write request.
-	SeriesCount int
-	TotalRate   float64
+	SeriesCount    int
+	TotalRate      float64
+	RandomIncrease bool
 
 	WriteInterval    time.Duration
 	WriteTimeout     time.Duration
@@ -79,7 +80,11 @@ func (c *WriteClient) run() {
 		select {
 		case <-ticker.C:
 			ts := alignTimestampToInterval(time.Now(), c.cfg.WriteInterval)
-			updateCounters(counters, ts.Sub(prevTs), c.cfg.TotalRate)
+			if c.cfg.RandomIncrease {
+				updateCountersRandomIncrease(counters, ts.Sub(prevTs), c.cfg.TotalRate)
+			} else {
+				updateCountersSameIncrease(counters, ts.Sub(prevTs), c.cfg.TotalRate)
+			}
 			prevTs = ts
 
 			c.writeSeries(ts, counters)
@@ -215,7 +220,16 @@ func generateSineWaveValue(t time.Time) float64 {
 	return math.Sin(radians)
 }
 
-func updateCounters(counters []float64, elapsed time.Duration, totalRate float64) {
+func updateCountersSameIncrease(counters []float64, elapsed time.Duration, totalRate float64) {
+	avgRate := totalRate / float64(len(counters))
+	avgIncrease := avgRate * elapsed.Seconds()
+
+	for ix := 0; ix < len(counters); ix++ {
+		counters[ix] += avgIncrease
+	}
+}
+
+func updateCountersRandomIncrease(counters []float64, elapsed time.Duration, totalRate float64) {
 	avgRate := totalRate / float64(len(counters))
 	avgIncrease := avgRate * elapsed.Seconds()
 

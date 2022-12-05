@@ -22,7 +22,7 @@ func TestUpdateSeries(t *testing.T) {
 
 	counters := make([]float64, series)
 
-	updateCounters(counters, seconds*time.Second, totalRate)
+	updateCountersRandomIncrease(counters, seconds*time.Second, totalRate)
 
 	avg := 0.0
 	for _, v := range counters {
