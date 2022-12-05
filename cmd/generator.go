@@ -7,11 +7,12 @@ import (
 
 	"github.com/go-kit/log"
 	"github.com/go-kit/log/level"
-	"github.com/pracucci/cortex-load-generator/pkg/client"
-	"github.com/pracucci/cortex-load-generator/pkg/util"
 	"github.com/prometheus/client_golang/prometheus"
 	"github.com/prometheus/client_golang/prometheus/collectors"
 	kingpin "gopkg.in/alecthomas/kingpin.v2"
+
+	"github.com/pracucci/cortex-load-generator/pkg/client"
+	"github.com/pracucci/cortex-load-generator/pkg/util"
 )
 
 var (
@@ -26,8 +27,9 @@ var (
 	queryTimeout           = kingpin.Flag("query-timeout", "Query timeout.").Default("30s").Duration()
 	queryMaxAge            = kingpin.Flag("query-max-age", "How back in the past metrics can be queried at most.").Default("24h").Duration()
 	tenantsCount           = kingpin.Flag("tenants-count", "Number of tenants to fake.").Default("1").Int()
-	seriesCount            = kingpin.Flag("series-count", "Number of series to generate for each tenant.").Default("1000").Int()
+	seriesCount            = kingpin.Flag("series-count", "Number of series (counters) to generate for each tenant.").Default("1000").Int()
 	serverMetricsPort      = kingpin.Flag("server-metrics-port", "The port where metrics are exposed.").Default("9900").Int()
+	totalRate              = kingpin.Flag("total-rate", "Total per-second rate of produced counters, will be randomly divided between counters").Default("1000000").Float()
 )
 
 func main() {
@@ -64,6 +66,7 @@ func main() {
 			WriteBatchSize:   *remoteBatchSize,
 			UserID:           userID,
 			SeriesCount:      *seriesCount,
+			TotalRate:        *totalRate,
 		}, logger))
 
 		if *queryEnabled == "true" {

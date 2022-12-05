@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"io"
 	"math"
+	"math/rand"
 	"net/http"
 	"net/url"
 	"strconv"
@@ -34,6 +35,7 @@ type WriteClientConfig struct {
 
 	// Number of series to generate per write request.
 	SeriesCount int
+	TotalRate   float64
 
 	WriteInterval    time.Duration
 	WriteTimeout     time.Duration
@@ -65,21 +67,44 @@ func NewWriteClient(cfg WriteClientConfig, logger log.Logger) *WriteClient {
 }
 
 func (c *WriteClient) run() {
-	c.writeSeries()
+	counters := make([]float64, c.cfg.SeriesCount)
+	ts := alignTimestampToInterval(time.Now(), c.cfg.WriteInterval)
+
+	c.writeSeries(ts, counters)
 
 	ticker := time.NewTicker(c.cfg.WriteInterval)
 
+	prevTs := ts
 	for {
 		select {
 		case <-ticker.C:
-			c.writeSeries()
+			ts := alignTimestampToInterval(time.Now(), c.cfg.WriteInterval)
+			updateCounters(counters, ts.Sub(prevTs), c.cfg.TotalRate)
+			prevTs = ts
+
+			c.writeSeries(ts, counters)
 		}
 	}
 }
 
-func (c *WriteClient) writeSeries() {
-	ts := alignTimestampToInterval(time.Now(), c.cfg.WriteInterval)
-	series := generateSineWaveSeries(ts, c.cfg.SeriesCount)
+func (c *WriteClient) writeSeries(ts time.Time, counters []float64) {
+	series := make([]*prompb.TimeSeries, 0, len(counters))
+
+	for ix := 0; ix < len(counters); ix++ {
+		series = append(series, &prompb.TimeSeries{
+			Labels: []*prompb.Label{{
+				Name:  "__name__",
+				Value: "load_generator_counter",
+			}, {
+				Name:  "idx",
+				Value: strconv.Itoa(ix + 1),
+			}},
+			Samples: []prompb.Sample{{
+				Value:     counters[ix],
+				Timestamp: ts.UnixMilli(),
+			}},
+		})
+	}
 
 	// Honor the batch size.
 	wg := sync.WaitGroup{}
@@ -188,4 +213,17 @@ func generateSineWaveValue(t time.Time) float64 {
 	period := float64(40 * (15 * time.Second))
 	radians := float64(t.UnixNano()) / period * 2 * math.Pi
 	return math.Sin(radians)
+}
+
+func updateCounters(counters []float64, elapsed time.Duration, totalRate float64) {
+	avgRate := totalRate / float64(len(counters))
+	avgIncrease := avgRate * elapsed.Seconds()
+
+	for ix := 0; ix < len(counters); ix++ {
+		inc := rand.NormFloat64()*(avgIncrease/3) + avgIncrease
+		// round to 3 places
+		inc = math.Round(inc*1000) / 1000
+
+		counters[ix] += inc
+	}
 }
