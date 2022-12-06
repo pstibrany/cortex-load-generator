@@ -31,6 +31,7 @@ var (
 	serverMetricsPort      = kingpin.Flag("server-metrics-port", "The port where metrics are exposed.").Default("9900").Int()
 	totalRate              = kingpin.Flag("total-rate", "Total per-second rate of produced counters, will be randomly divided between counters").Default("1000000").Float()
 	randomIncrease         = kingpin.Flag("random-increase", "Increase counters randomly").Default("false").Bool()
+	extraLabels            = kingpin.Flag("extra-labels-count", "Number of additional labels added to all series").Default("0").Int()
 )
 
 func main() {
@@ -69,6 +70,7 @@ func main() {
 			SeriesCount:      *seriesCount,
 			TotalRate:        *totalRate,
 			RandomIncrease:   *randomIncrease,
+			ExtraLabels:      *extraLabels,
 		}, logger))
 
 		if *queryEnabled == "true" {

@@ -10,6 +10,7 @@ import (
 	"math/rand"
 	"net/http"
 	"net/url"
+	"sort"
 	"strconv"
 	"sync"
 	"time"
@@ -37,6 +38,7 @@ type WriteClientConfig struct {
 	SeriesCount    int
 	TotalRate      float64
 	RandomIncrease bool
+	ExtraLabels    int
 
 	WriteInterval    time.Duration
 	WriteTimeout     time.Duration
@@ -96,14 +98,28 @@ func (c *WriteClient) writeSeries(ts time.Time, counters []float64) {
 	series := make([]*prompb.TimeSeries, 0, len(counters))
 
 	for ix := 0; ix < len(counters); ix++ {
+		lbls := []*prompb.Label{{
+			Name:  "__name__",
+			Value: "load_generator_counter",
+		}, {
+			Name:  "idx",
+			Value: strconv.Itoa(ix + 1),
+		}}
+
+		for j := 0; j < c.cfg.ExtraLabels; j++ {
+			lbls = append(lbls, &prompb.Label{
+				Name:  fmt.Sprintf("lbl_%d", j),
+				Value: fmt.Sprintf("%d", j),
+			})
+		}
+
+		// Make sure labels are sorted.
+		sort.Slice(lbls, func(i, j int) bool {
+			return lbls[i].Name < lbls[j].Name
+		})
+
 		series = append(series, &prompb.TimeSeries{
-			Labels: []*prompb.Label{{
-				Name:  "__name__",
-				Value: "load_generator_counter",
-			}, {
-				Name:  "idx",
-				Value: strconv.Itoa(ix + 1),
-			}},
+			Labels: lbls,
 			Samples: []prompb.Sample{{
 				Value:     counters[ix],
 				Timestamp: ts.UnixMilli(),
